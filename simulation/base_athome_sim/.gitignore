@@ -1,0 +1,22 @@
+# Artefactos de simulacion: nunca se versionan
+*.log
+*.bag
+*.db3
+*.mcap
+*.pt
+*.onnx
+*.caffemodel
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.cache/
+cache/
+# Corridas y evidencia generadas por las campanas
+logs/
+bags/
+navigation_evidence/
+# Mallas Fuel de la Receptionist (CC-BY): se bajan con `python3 -m base_athome_sim.receptionist_humans --fetch`
+models/humans/FemaleVisitor/
+models/humans/FemaleVisitorSit/
+models/humans/MaleVisitorOnPhone/
+models/humans/MaleVisitorSit/

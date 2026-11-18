@@ -1,0 +1,8 @@
+{
+  "url": "https://fuel.gazebosim.org/1.0/Luca/models/NurseFemaleWalk/1",
+  "version": 1,
+  "license": "CC-BY-4.0",
+  "license_url": "https://creativecommons.org/licenses/by/4.0/",
+  "attribution": "Luca (uploader) / Wan Yi Seow (author)",
+  "modifications": "Static bone poses baked using original skin weights"
+}

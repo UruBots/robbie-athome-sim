@@ -1,0 +1,25 @@
+# Simulation only: geometry from worlds/receptionist_humans.sdf.
+# --sim-nav exercises HRI without executing these waypoint targets.
+waypoints:
+  door: {x: -2.0, y: 0.0, qz: 0.0, qw: 1.0}
+  living_room: {x: 1.0, y: 0.0, qz: 0.0, qw: 1.0}
+zones: {}
+objects:
+  sofa_host: {x: 3.5, y: 0.0, type: couch}
+  coffee_table: {x: 2.0, y: 0.0, type: table}
+  bag_drop_zone: {x: 4.35, y: 0.55, type: drop_zone}
+seats:
+  chair_left:
+    name: chair on the left
+    x: 3.5
+    y: 1.5
+    capacity: 1
+    type: chair
+    polygon: [[3.25, 1.25], [3.75, 1.25], [3.75, 1.75], [3.25, 1.75]]
+  chair_right:
+    name: chair on the right
+    x: 3.5
+    y: -1.5
+    capacity: 1
+    type: chair
+    polygon: [[3.25, -1.75], [3.75, -1.75], [3.75, -1.25], [3.25, -1.25]]

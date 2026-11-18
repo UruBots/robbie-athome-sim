@@ -1,0 +1,8 @@
+{
+  "url": "https://fuel.gazebosim.org/1.0/OpenRobotics/models/Male%20visitor/2",
+  "version": 1,
+  "license": "CC0-1.0",
+  "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "attribution": "OpenRobotics / Wan Yi Seow",
+  "modifications": "Static bone poses baked using original skin weights"
+}

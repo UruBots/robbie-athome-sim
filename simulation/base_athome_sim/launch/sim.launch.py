@@ -1,0 +1,92 @@
+"""Simulacion de Base@Home.
+
+  ros2 launch base_athome_sim sim.launch.py                 # simple: sin fisica, liviana (CPU minima)
+  ros2 launch base_athome_sim sim.launch.py gazebo:=true    # Gazebo Harmonic (gz sim) con fisica/render
+Argumentos: rviz:=true|false  auto_guest:=true|false  gz_gui:=true|false  world:=arena.sdf
+Entorno: ATHOME_SIM_WORLD (mundo si no hay world:=), ATHOME_SIM_START="x,y,yaw_deg" (pose inicial del robot en Gazebo).
+Usar SIEMPRE en un ROS_DOMAIN_ID distinto del robot (alias `sim_env` -> 42).
+"""
+import math
+import os
+
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction, SetEnvironmentVariable
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+from base_athome_sim import gz_model
+
+
+def _setup(context):
+    use_gz = LaunchConfiguration("gazebo").perform(context).lower() == "true"
+    gz_gui = LaunchConfiguration("gz_gui").perform(context).lower() == "true"
+    urdf_path = os.path.join(get_package_share_directory("hoverboard_base"), "urdf", "robot.urdf")
+    with open(urdf_path, encoding="utf-8") as f:
+        urdf = f.read()
+    sim_share = get_package_share_directory("base_athome_sim")
+    actions = [
+        Node(package="robot_state_publisher", executable="robot_state_publisher", output="log",
+             parameters=[{"robot_description": urdf}]),
+    ]
+    if use_gz:
+        shares = {os.path.dirname(get_package_share_directory(p)) for p in ("piper_description", "hoverboard_base")}
+        shares.add(os.path.join(get_package_prefix("piper_description"), "share"))
+        shares.add(os.path.join(sim_share, "models", "humans"))
+        world_arg = LaunchConfiguration("world").perform(context)
+        world_env = os.environ.get("ATHOME_SIM_WORLD")
+        if world_arg:
+            world = world_arg if os.path.isabs(world_arg) else os.path.join(sim_share, "worlds", world_arg)
+        elif world_env:
+            world = world_env if os.path.isabs(world_env) else os.path.join(sim_share, "worlds", world_env)
+        else:
+            world = os.path.join(sim_share, "worlds", "casa_basura.sdf" if os.environ.get("ATHOME_SIM_BAG") else "casa_simple.sdf")
+        # Keep sim_robot's /world/<name>/create calls aligned with the world selected above.
+        actions.append(SetEnvironmentVariable(name="ATHOME_SIM_WORLD", value=os.path.basename(world)))
+        # ATHOME_SIM_START="x,y,yaw_deg": donde aparece el robot (por defecto el origen del mundo). Con Nav2, nav2_sim.launch.py
+        # da la misma pose a AMCL; con SLAM el mapa nace ahi. La odometria de gz sim es la pose en el mundo: mapa = mundo.
+        start = [float(v) for v in os.environ.get("ATHOME_SIM_START", "0,0,0").split(",")]
+        start_args = ["-x", str(start[0]), "-y", str(start[1]), "-Y", str(math.radians(start[2]))]
+        initial_joint_positions = None
+        arm_start_pose = os.environ.get("ATHOME_SIM_ARM_START_POSE", "").strip()
+        if use_gz and arm_start_pose:
+            arm_config = os.path.join(get_package_share_directory("base_athome_perception"),
+                                      "config", "arm_poses_and_limits.yaml")
+            initial_joint_positions = gz_model.initial_joint_positions_from_pose_config(
+                arm_config, arm_start_pose)
+        print(f"SIM_INITIAL_SPAWN gz={start[0]:.4f},{start[1]:.4f},{math.radians(start[2]):.4f} "
+              f"arm_pose={arm_start_pose or 'gazebo-default'}", flush=True)
+        # Un archivo por simulacion: dos simulaciones en paralelo (otro dominio ROS) no se pisan el modelo.
+        gz_urdf = os.path.join("/tmp", f"base_athome_gz_{os.getuid()}_d{os.environ.get('ROS_DOMAIN_ID', '0')}"
+                                       f"_{os.getpid()}.urdf")
+        with open(gz_urdf, "w", encoding="utf-8") as f:
+            f.write(gz_model.gazebo_urdf(urdf, initial_joint_positions))
+        actions += [
+            SetEnvironmentVariable("GZ_SIM_RESOURCE_PATH", ":".join(sorted(shares) + [os.environ.get("GZ_SIM_RESOURCE_PATH", "")])),
+            ExecuteProcess(cmd=["gz", "sim", "-r", world] + ([] if gz_gui else ["-s", "--headless-rendering"]), output="log"),
+            Node(package="ros_gz_sim", executable="create", output="screen",
+                 arguments=["-name", gz_model.MODEL, "-file", gz_urdf, "-z", "0.0"] + start_args),
+            Node(package="ros_gz_bridge", executable="parameter_bridge", output="log",
+                 arguments=gz_model.bridge_args(),
+                 parameters=[{"override_timestamps_with_wall_time": True}]),
+        ]
+    actions.append(Node(package="base_athome_sim", executable="sim_robot", output="screen",
+                        parameters=[{"gazebo": use_gz,
+                                     "auto_guest": LaunchConfiguration("auto_guest").perform(context).lower() == "true"}]))
+    return actions
+
+
+def generate_launch_description():
+    rviz_cfg = os.path.join(get_package_share_directory("base_athome_sim"), "rviz", "sim.rviz")
+    return LaunchDescription([
+        DeclareLaunchArgument("gazebo", default_value="false"),
+        DeclareLaunchArgument("world", default_value=""),
+        DeclareLaunchArgument("gz_gui", default_value="true"),
+        DeclareLaunchArgument("rviz", default_value="true"),
+        DeclareLaunchArgument("auto_guest", default_value="false"),
+        SetEnvironmentVariable("ATHOME_SIM", "1"),
+        OpaqueFunction(function=_setup),
+        Node(package="rviz2", executable="rviz2", arguments=["-d", rviz_cfg], output="log",
+             condition=IfCondition(LaunchConfiguration("rviz"))),
+    ])
